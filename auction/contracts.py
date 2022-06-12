@@ -11,6 +11,8 @@ def approval_program():
     num_bids_key = Bytes("num_bids")
     lead_bid_amount_key = Bytes("bid_amount")
     lead_bid_account_key = Bytes("bid_account")
+    royalty_percentage = Bytes("royalty_percentage")
+    nft_creator = Bytes("nft_creator")
 
     @Subroutine(TealType.none)
     def closeNFTTo(assetID: Expr, account: Expr) -> Expr:
@@ -32,6 +34,23 @@ def approval_program():
                     InnerTxnBuilder.Submit(),
                 )
             ),
+        )
+
+    @Subroutine(TealType.none)
+    def payRoyalties(royaltyAmount: Expr, nftCreator: Expr):
+        contract_balance = Balance(Global.current_application_address())
+        return If(contract_balance != Int(0)).Then(
+            Seq(
+                InnerTxnBuilder.Begin(),
+                InnerTxnBuilder.SetFields(
+                    {
+                        TxnField.type_enum: TxnType.Payment,
+                        TxnField.amount: (contract_balance / Int(100) * royaltyAmount) - Global.min_txn_fee(),
+                        TxnField.receiver: nftCreator,
+                    }
+                ),
+                InnerTxnBuilder.Submit(),
+            )
         )
 
     @Subroutine(TealType.none)
@@ -73,6 +92,8 @@ def approval_program():
         App.globalPut(reserve_amount_key, Btoi(Txn.application_args[4])),
         App.globalPut(min_bid_increment_key, Btoi(Txn.application_args[5])),
         App.globalPut(lead_bid_account_key, Global.zero_address()),
+        App.globalPut(royalty_percentage, Btoi(Txn.application_args[6])),
+        App.globalPut(nft_creator, Txn.application_args[7]),
         Assert(
             And(
                 Global.latest_timestamp() < on_create_start_time,
@@ -162,6 +183,7 @@ def approval_program():
                 # if the auction contract account has opted into the nft, close it out
                 closeNFTTo(App.globalGet(nft_id_key), App.globalGet(seller_key)),
                 # if the auction contract still has funds, send them all to the seller
+                payRoyalties(App.globalGet(royalty_percentage), App.globalGet(nft_creator)),
                 closeAccountTo(App.globalGet(seller_key)),
                 Approve(),
             )
@@ -201,6 +223,7 @@ def approval_program():
                     closeNFTTo(App.globalGet(nft_id_key), App.globalGet(seller_key))
                 ),
                 # send remaining funds to the seller
+                payRoyalties(App.globalGet(royalty_percentage), App.globalGet(nft_creator)),
                 closeAccountTo(App.globalGet(seller_key)),
                 Approve(),
             )
