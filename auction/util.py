@@ -105,6 +105,12 @@ def getBalances(client: AlgodClient, account: str) -> Dict[int, int]:
 
     return balances
 
+def checkAssetPossession(client: AlgodClient, account: str, asset: int) -> bool:
+    accountInfo = client.account_info(account)
+
+    assets: List[Dict[str, Any]] = accountInfo.get("assets", [])
+    assetIds = [assetHolding['asset-id'] for assetHolding in assets if assetHolding['amount'] !=0]
+    return asset in assetIds
 
 def getLastBlockTimestamp(client: AlgodClient) -> Tuple[int, int]:
     status = client.status()
