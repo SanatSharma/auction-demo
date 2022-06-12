@@ -48,6 +48,8 @@ def createAuctionApp(
     endTime: int,
     reserve: int,
     minBidIncrement: int,
+    royaltyPercentage: int,
+    nftCreator: str
 ) -> int:
     """Create a new auction.
 
@@ -73,9 +75,10 @@ def createAuctionApp(
     """
     approval, clear = getContracts(client)
 
-    globalSchema = transaction.StateSchema(num_uints=7, num_byte_slices=2)
+    globalSchema = transaction.StateSchema(num_uints=9, num_byte_slices=3)
     localSchema = transaction.StateSchema(num_uints=0, num_byte_slices=0)
 
+    #print("ROYALTY percentage: " + royaltyPercentage)
     app_args = [
         encoding.decode_address(seller),
         nftID.to_bytes(8, "big"),
@@ -83,6 +86,12 @@ def createAuctionApp(
         endTime.to_bytes(8, "big"),
         reserve.to_bytes(8, "big"),
         minBidIncrement.to_bytes(8, "big"),
+        royaltyPercentage.to_bytes(8, "big"),
+        encoding.decode_address(nftCreator)
+    ]
+
+    account_array = [
+        nftCreator
     ]
 
     txn = transaction.ApplicationCreateTxn(
@@ -94,6 +103,7 @@ def createAuctionApp(
         local_schema=localSchema,
         app_args=app_args,
         sp=client.suggested_params(),
+        accounts=account_array
     )
 
     signedTxn = txn.sign(sender.getPrivateKey())
@@ -252,7 +262,8 @@ def closeAuction(client: AlgodClient, appID: int, closer: Account):
 
     nftID = appGlobalState[b"nft_id"]
 
-    accounts: List[str] = [encoding.encode_address(appGlobalState[b"seller"])]
+    accounts: List[str] = [encoding.encode_address(appGlobalState[b"seller"]),
+    encoding.encode_address(appGlobalState[b"nft_creator"])]
 
     if any(appGlobalState[b"bid_account"]):
         # if "bid_account" is not the zero address
